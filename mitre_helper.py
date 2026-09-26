@@ -16,7 +16,8 @@ except ImportError:
     MITREATTRACK_AVAILABLE = False
 
 
-DEFAULT_STIX_DIR = r"D:\harfile\edrtest\stix"
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_STIX_DIR = os.path.join(REPO_ROOT, "stix")
 _ATTACK_DATA_INSTANCE: Optional["MitreAttackData"] = None
 
 

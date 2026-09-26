@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Atomic Red Team library and engine (installed to root folder via --get-atomics)
+atomics/
+invoke-atomicredteam/
+ExternalPayloads/
+
 # Large STIX dataset cache (auto-downloaded by mitre_helper.py on demand)
 stix/
 

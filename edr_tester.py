@@ -14,9 +14,127 @@ import sys
 import winrm
 
 
-# Default paths matching your setup
-DEFAULT_INVOKE_PATH = r"D:\tools\redteam\invoke-atomicredteam\Invoke-AtomicRedTeam.psd1"
-DEFAULT_ATOMICS_PATH = r"D:\tools\redteam\atomics"
+# Project root directory (atomics and engine default to root folder)
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_ATOMICS_PATH = os.path.join(REPO_ROOT, "atomics")
+DEFAULT_INVOKE_PATH = os.path.join(REPO_ROOT, "invoke-atomicredteam", "Invoke-AtomicRedTeam.psd1")
+
+
+def get_atomics_path(override_path: str | None = None) -> str:
+    """Returns the atomics folder path, prioritizing the root folder of the code."""
+    if override_path and os.path.isdir(override_path):
+        return override_path
+
+    root_path = os.path.join(REPO_ROOT, "atomics")
+    if os.path.isdir(root_path):
+        return root_path
+
+    # Fallback paths
+    fallbacks = [
+        r"D:\tools\redteam\atomics",
+        os.path.expandvars(r"%HOMEDRIVE%\AtomicRedTeam\atomics"),
+        r"C:\AtomicRedTeam\atomics",
+    ]
+    for p in fallbacks:
+        if os.path.isdir(p):
+            return p
+    return root_path
+
+
+def get_module_path(override_path: str | None = None) -> str:
+    """Returns the Invoke-AtomicRedTeam.psd1 path, prioritizing the root folder of the code."""
+    if override_path and os.path.isfile(override_path):
+        return override_path
+
+    root_module = os.path.join(REPO_ROOT, "invoke-atomicredteam", "Invoke-AtomicRedTeam.psd1")
+    if os.path.isfile(root_module):
+        return root_module
+
+    # Fallback paths
+    fallbacks = [
+        r"D:\tools\redteam\invoke-atomicredteam\Invoke-AtomicRedTeam.psd1",
+        os.path.expandvars(r"%HOMEDRIVE%\AtomicRedTeam\invoke-atomicredteam\Invoke-AtomicRedTeam.psd1"),
+        r"C:\AtomicRedTeam\invoke-atomicredteam\Invoke-AtomicRedTeam.psd1",
+    ]
+    for p in fallbacks:
+        if os.path.isfile(p):
+            return p
+    return root_module
+
+
+def install_atomic_red_team(install_dir: str | None = None) -> bool:
+    """Downloads and installs Invoke-AtomicRedTeam and atomics directly into the root folder of the code."""
+    dest = install_dir or REPO_ROOT
+    print(f"\n{'=' * 68}")
+    print("      ATOMIC RED TEAM INSTALLER (Root Directory Deployment)")
+    print(f"{'=' * 68}")
+    print(f"[*] Target Destination: {dest}")
+    print("[*] Running official Red Canary installer via PowerShell...\n")
+
+    ps_script = f"""
+    $ProgressPreference = 'SilentlyContinue'
+    Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+    try {{
+        IEX (IWR 'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/install-atomicredteam.ps1' -UseBasicParsing)
+        Install-AtomicRedTeam -InstallPath '{dest}' -getAtomics -Force
+        exit 0
+    }} catch {{
+        Write-Error $_
+        exit 1
+    }}
+    """
+    try:
+        proc = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=600,
+        )
+        if proc.stdout:
+            print(proc.stdout)
+        if proc.stderr:
+            print("[!] STDERR:", file=sys.stderr)
+            print(proc.stderr, file=sys.stderr)
+
+        expected_atomics = os.path.join(dest, "atomics")
+        expected_module = os.path.join(dest, "invoke-atomicredteam", "Invoke-AtomicRedTeam.psd1")
+        if os.path.isdir(expected_atomics) and os.path.isfile(expected_module):
+            print(f"[+] SUCCESS: Atomic Red Team deployed to root folder:\n    {dest}\n")
+            return True
+        else:
+            print(f"[-] Components missing after install in {dest}", file=sys.stderr)
+            return False
+    except subprocess.TimeoutExpired:
+        print("\n[-] Installation timed out after 10 minutes.", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"\n[-] Installation error: {e}", file=sys.stderr)
+        return False
+
+
+def ensure_atomic_red_team(atomics_path: str, module_path: str) -> tuple[str, str]:
+    """Ensures Atomic Red Team is present. If missing, automatically downloads it to the repository root."""
+    if os.path.isdir(atomics_path) and os.path.isfile(module_path):
+        return atomics_path, module_path
+
+    print("\n" + "=" * 68)
+    print("      ATOMIC RED TEAM NOT FOUND IN ROOT DIRECTORY")
+    print("=" * 68)
+    print("[*] First-time run detected: Atomic Red Team test library and engine")
+    print(f"    are not yet installed in the project root:\n    {REPO_ROOT}")
+    print("[*] Automatically initiating zero-config setup to fetch components...")
+    print("=" * 68 + "\n")
+
+    success = install_atomic_red_team(REPO_ROOT)
+    if not success:
+        print("[-] Automatic installation failed. Please check your internet connection or run:", file=sys.stderr)
+        print("    powershell -ExecutionPolicy Bypass -Command \"IEX (IWR 'https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/install-atomicredteam.ps1' -UseBasicParsing); Install-AtomicRedTeam -InstallPath . -getAtomics -Force\"\n", file=sys.stderr)
+        sys.exit(1)
+
+    new_atomics = os.path.join(REPO_ROOT, "atomics")
+    new_module = os.path.join(REPO_ROOT, "invoke-atomicredteam", "Invoke-AtomicRedTeam.psd1")
+    return new_atomics, new_module
 
 
 def list_techniques(atomics_path: str) -> None:
@@ -425,10 +543,22 @@ def main():
         action="store_true",
         help="Disable automatic post-test artifact cleanup (cleanup runs automatically by default)",
     )
+    parser.add_argument(
+        "--get-atomics",
+        "--install-atomics",
+        action="store_true",
+        help="Download and install Atomic Red Team and Invoke-AtomicRedTeam directly into the project root folder",
+    )
 
     args = parser.parse_args()
 
-    # Query technique CTI info via mitreattack-python
+    # Manual or explicit installer trigger
+    if getattr(args, "get_atomics", False):
+        install_dir = args.atomics_path if args.atomics_path != DEFAULT_ATOMICS_PATH else REPO_ROOT
+        success = install_atomic_red_team(install_dir)
+        sys.exit(0 if success else 1)
+
+    # Query technique CTI info via mitreattack-python (only requires STIX data)
     if args.info:
         try:
             import mitre_helper
@@ -437,14 +567,19 @@ def main():
             print(f"[-] CTI Lookup Error: {e}", file=sys.stderr)
         return
 
+    # Resolve paths (prioritizing root folder) and automatically download into root if missing
+    atomics_path = get_atomics_path(args.atomics_path)
+    module_path = get_module_path(args.module_path)
+    atomics_path, module_path = ensure_atomic_red_team(atomics_path, module_path)
+
     # Display MITRE ATT&CK matrix if requested
     if args.matrix:
-        show_matrix(args.atomics_path)
+        show_matrix(atomics_path)
         return
 
     # Handle fast technique enumeration
     if args.list_techniques:
-        list_techniques(args.atomics_path)
+        list_techniques(atomics_path)
         return
 
     # Parse techniques from -t
@@ -458,7 +593,7 @@ def main():
 
     # If --tactic is specified, retrieve techniques for that tactic
     if args.tactic:
-        tactic_techs = get_techniques_by_tactic(args.atomics_path, args.tactic)
+        tactic_techs = get_techniques_by_tactic(atomics_path, args.tactic)
         if not tactic_techs:
             print(f"[-] No techniques found for tactic '{args.tactic}'", file=sys.stderr)
             sys.exit(1)
@@ -478,9 +613,9 @@ def main():
             # Cross-reference with available techniques in local atomics directory
             pattern = re.compile(r"^T\d{4}(?:\.\d{3})?$")
             local_techs = set(
-                d for d in os.listdir(args.atomics_path)
-                if os.path.isdir(os.path.join(args.atomics_path, d)) and pattern.match(d)
-            ) if os.path.isdir(args.atomics_path) else set()
+                d for d in os.listdir(atomics_path)
+                if os.path.isdir(os.path.join(atomics_path, d)) and pattern.match(d)
+            ) if os.path.isdir(atomics_path) else set()
 
             matched_techs = [t for t in group_techs if t in local_techs]
             print(f"[*] {len(matched_techs)} of {len(group_techs)} {args.group} techniques exist in your local Atomic library.")
@@ -508,11 +643,11 @@ def main():
         if not techniques:
             # Enumerate all available techniques individually so each gets isolated progress & timeouts
             pattern = re.compile(r"^T\d{4}(?:\.\d{3})?$")
-            if os.path.isdir(args.atomics_path):
+            if os.path.isdir(atomics_path):
                 discovered = [
                     d
-                    for d in os.listdir(args.atomics_path)
-                    if os.path.isdir(os.path.join(args.atomics_path, d))
+                    for d in os.listdir(atomics_path)
+                    if os.path.isdir(os.path.join(atomics_path, d))
                     and pattern.match(d)
                 ]
                 techniques = sorted(discovered)
@@ -567,8 +702,8 @@ def main():
                     technique_id=tech_id,
                     test_number=test_number,
                     action=args.action,
-                    atomics_path=args.atomics_path,
-                    module_path=args.module_path,
+                    atomics_path=atomics_path,
+                    module_path=module_path,
                     force=force,
                     report_path=args.report,
                     timeout_seconds=args.timeout,
@@ -582,8 +717,8 @@ def main():
                         timeout=(args.timeout * 2) + 15,
                         technique_id=tech_id,
                         test_number=test_number,
-                        atomics_path=args.atomics_path,
-                        module_path=args.module_path,
+                        atomics_path=atomics_path,
+                        module_path=module_path,
                         auto_cleanup=auto_cleanup,
                     )
                     tech_exit_code = code

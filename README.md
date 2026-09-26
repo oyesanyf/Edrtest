@@ -38,6 +38,23 @@ This repository is an automation and orchestration **port** built on top of:
 
 ---
 
+## Quick Start (Zero-Config Setup)
+
+You do **not** need to manually download Atomic Red Team or install external tools. Everything is automatically deployed directly into the repository root:
+
+```bash
+git clone https://github.com/oyesanyf/Edrtest.git
+cd Edrtest
+pip install -r requirements.txt
+
+# Run any command - if atomics are missing, it automatically installs them into ./atomics
+python edr_tester.py --all
+```
+
+*(You can also explicitly pre-install anytime via `python edr_tester.py --get-atomics`)*.
+
+---
+
 ## Prerequisites
 
 1. **Python 3.10+** (Python 3.14+ supported).
@@ -47,15 +64,16 @@ This repository is an automation and orchestration **port** built on top of:
    ```
    *(Installs `pywinrm` and `mitreattack-python`)*
 3. **PowerShell Execution Policy:**
-   Ensure PowerShell allows script execution:
+   Ensure PowerShell allows process script execution:
    ```powershell
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
    ```
-4. **Invoke-AtomicRedTeam & Atomics Directory:**
-   By default, the script looks for:
-   - Module: `D:\tools\redteam\invoke-atomicredteam\Invoke-AtomicRedTeam.psd1`
-   - Atomics folder: `D:\tools\redteam\atomics`
-   *(Override via `--module-path` and `--atomics-path` if installed elsewhere).*
+4. **Automatic Root Directory Deployment:**
+   Atomic Red Team test files and engine default directly to the root folder:
+   - Module: `.\invoke-atomicredteam\Invoke-AtomicRedTeam.psd1`
+   - Atomics: `.\atomics`
+   - STIX Data: `.\stix`
+   *(Override via `--module-path` and `--atomics-path` if you wish to use existing external folders).*
 5. **Remote Host Requirements (for WinRM testing):**
    - Enable WinRM on target endpoint: `Enable-PSRemoting -Force`
    - Default port: `5985` (HTTP) or `5986` (HTTPS).
@@ -73,13 +91,14 @@ usage: edr_tester.py [-h] [-t TECHNIQUE [TECHNIQUE ...]] [--matrix]
                      [--local] [--remote] [--host HOST] [--user USER]
                      [--password PASSWORD] [--port PORT] [--force]
                      [--report REPORT] [--timeout TIMEOUT] [--include-reboot]
-                     [--no-cleanup]
+                     [--no-cleanup] [--get-atomics]
 ```
 
 ### CLI Arguments
 
 | Flag | Description |
 | :--- | :--- |
+| `--get-atomics` | Download and install Atomic Red Team and `Invoke-AtomicRedTeam` directly into the project root folder. |
 | `--all` | **Master Run.** Executes every test across all 340+ techniques in sequence with isolated timeouts and progress tracking. |
 | `--no-cleanup` | Disable automatic post-test artifact cleanup (**cleanup is enabled by default** after each test). |
 | `--timeout <sec>` | Maximum timeout in seconds per test before terminating it (default: `25s`). |
