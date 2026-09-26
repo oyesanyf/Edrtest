@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Large STIX dataset cache (auto-downloaded by mitre_helper.py on demand)
+stix/
+
+# Execution reports and logs
+*.csv
+*.log
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# IDE files
+.vscode/
+.idea/

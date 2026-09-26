@@ -1,0 +1,2 @@
+pywinrm>=0.5.0
+mitreattack-python>=6.2.0
